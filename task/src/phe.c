@@ -91,9 +91,11 @@ void TS_phe_task(void *p_arg)
     for (int i=0;i<13;i++)
     {
       item->data_ptr[i] = contet_s[i];
+      item->used++;
     }
           sio_put_cmd(1,item);
     break;
+   
 #endif
           //从MC获取当前系统状态                        
           if (mc_get_state()==1)
@@ -138,8 +140,10 @@ void TS_phe_led_ind(unsigned int color,unsigned int state)
 返回值：无
 描述：FLASH初始化
 */
-void TS_phe_buzz_ind(void)
+void TS_phe_buzz_ind(unsigned int device,unsigned int state)
 {
+  DR_buzz_set(device,state);
+  
 }
 
 

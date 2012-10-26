@@ -68,7 +68,6 @@ static void  bsp_ed_init(void)
   //使能中断，必加
   __enable_interrupt();
   
-
 }
 
 /*

@@ -90,7 +90,7 @@ void DR_twc_1ms_cb(void)   //TIME1
 */
 void DR_twc_init()
 {
-  GLOBE_SET_GPIO_IN(GLOBE_TWC_RX); 
+  GLOBE_SET_GPIO_OUT(GLOBE_TWC_RX); 
   GLOBE_GPIO_INT_DIS(GLOBE_TWC_RX);
   dr_twc_state = DR_TWC_INIT;
   dr_twc_sync_count= 0;
@@ -106,6 +106,7 @@ void DR_twc_init()
 void DR_twc_start_recv()
 {
   //打开中断
+  GLOBE_SET_GPIO_IN(GLOBE_TWC_RX); 
   GLOBE_GPIO_INT_EN(GLOBE_TWC_RX);
   dr_twc_state = DR_TWC_SYNC1;//满足同步条件，下面就是识别同步长度
 }
@@ -132,6 +133,7 @@ void DR_twc_exit()
   dr_twc_state = DR_TWC_INIT;
   //关闭中断,靠1ms定时器来启动
   GLOBE_GPIO_INT_DIS(GLOBE_TWC_RX);
+  GLOBE_SET_GPIO_OUT(GLOBE_TWC_RX); 
   dr_twc_sync_count = 0;
 }
 /*

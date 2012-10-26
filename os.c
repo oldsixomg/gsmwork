@@ -74,6 +74,7 @@ DSM_ITEM * dsm_alloc_item(void)
   {
     dsm = dsm_free_list;
     dsm_free_list = dsm->next;
+    dsm->next = 0;
   }
   else
   {
@@ -84,8 +85,15 @@ DSM_ITEM * dsm_alloc_item(void)
 
 void dsm_free_item(DSM_ITEM *dsm)
 {
-  dsm->next = dsm_free_list;
-  dsm_free_list = dsm;
+  DSM_ITEM *list = dsm;
+  while (list->next != 0) //走到连的最后一个
+  {
+    list->used = 0;
+    list = list->next;
+  }
+  list->used = 0;
+  list->next = dsm_free_list;  //最后一个节点接上原来free的连，并插在前面
+  dsm_free_list = dsm;  //重新对free指针赋值
 }
 
 

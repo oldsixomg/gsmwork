@@ -13,28 +13,13 @@
 *
 * ----------------------------------------------------------------------------
 */
-
-#include "bsp.h"
-
-
-#define TS_Q_EFS_CMD         0x0001
-
-typedef enum
-{
-  NV_C_COUNT_I = 0,
-  NV_D_COUNT_I,
-  NV_C_ADD_S_I = 2,
-  NV_C_ADD_E_I = 7,
-  NV_D_ADD_S_I = 8,
-  NV_D_ADD_E_I = 28,
-  NV_N_ADD_S_I = 32,
-  NV_N_ADD_E_I = 48,
-  NV_PASS_S_I = 64,
-  NV_PASS_E_I = 68,
-}NV_ITEM_I;
-
-
-
-
-
-extern void TS_efs_task(void *p_arg);
+typedef enum {
+  MC_SYS_SET_C = 0,
+  MC_SYS_SET_D,
+  MC_SYS_SET_NUM,
+  MC_SYS_RESET,
+  MC_SYS_NO_SET,
+  MC_SYS_UNPORTECT,
+  MC_SYS_PORTECT,
+  MC_SYS_ALARM,
+}MC_SYS_STATE;

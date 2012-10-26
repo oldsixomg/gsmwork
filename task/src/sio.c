@@ -71,8 +71,7 @@ void TS_sio_task(void *p_arg)
         {
            if (cmd_ptr->cmd_id == RS232_UP_CMD)
            {
-              globe_device_port[((DSM_ITEM *)(cmd_ptr->data_p))->stream_id].recv(((DSM_ITEM *)(cmd_ptr->data_p))->data_ptr
-                                                                                 ,((DSM_ITEM *)(cmd_ptr->data_p))->used);
+              globe_device_port[((DSM_ITEM *)(cmd_ptr->data_p))->stream_id].recv((DSM_ITEM *)(cmd_ptr->data_p),0);
            }
            free_a_cmd(cmd_ptr);
            dsm_free_item((DSM_ITEM *)(cmd_ptr->data_p));

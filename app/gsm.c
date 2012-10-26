@@ -20,17 +20,39 @@
 
 //头文件
 #include "os.h"
+#include "mc.h"
 
 extern void app_auto_cmd_cmti(char * ptr, int len);
 extern void app_auto_cmd_clip(char * ptr, int len);
+extern void app_auto_cmd_start(char * ptr, int len);
 extern void APP_gsm_send(void * ptr, int len);
 extern void app_sync_cmd_cmgr(char * ptr, int len);
+
 //主动上报回码
 typedef struct _AT_ARRY{
   unsigned char cmd[19];
   unsigned char flags;
   void (*func)(char *,int);
 }AT_ARRY;
+typedef struct {
+  char SCA[16]; // 短消息服务中心号码(SMSC地址)
+  char TPA[16]; // 目标号码或回复号码(TP-DA或TP-RA)
+  char TP_PID; // 用户信息协议标识(TP-PID)
+  char TP_DCS; // 用户信息编码方式(TP-DCS)
+  char TP_SCTS[16]; // 服务时间戳字符串(TP_SCTS), 接收时用到
+  char TP_UD[160]; // 接收到的短信内容
+  //char TP_UDS[160]; // 要发送的短信内容
+} SM_PARAM;
+
+//等待状态定义
+typedef enum
+{
+  APP_GSM_WAIT_SYNC = 0,
+  APP_GSM_WAIT_NSYNC,
+  APP_GSM_WAIT_AUTO,
+}APP_GSM_WORK_STATE;
+
+
 
 //变量引用
 //变量定义
@@ -61,24 +83,20 @@ unsigned char app_nsync_cmd[][20] =
 
 AT_ARRY app_auto_cmd[10] =
 {
-  {"^SYSSTART",0,0},
   {"+CMTI",0,app_auto_cmd_cmti},
   {"+CLIP",0,app_auto_cmd_clip},
+  {"^SYSSTART",0,app_auto_cmd_start},
   {"+CMT",0,0},
   {"+CDS",0,0},
   {"+CBM",0,0},
   {"RING",0,0}
 };
 
-//等待状态定义
-typedef enum
-{
-  APP_GSM_WAIT_SYNC = 0,
-  APP_GSM_WAIT_NSYNC,
-  APP_GSM_WAIT_AUTO,
-}APP_GSM_WORK_STATE;
-
 APP_GSM_WORK_STATE app_gsm_work_state = APP_GSM_WAIT_AUTO;
+SM_PARAM sms_st;
+unsigned char gsm_recv_buff[256];
+
+extern char mc_password[5];
 //函数引用
 //函数定义
 
@@ -101,16 +119,17 @@ char *strcpy(char *str1,char *str2){
 void APP_gsm(void)
 {
   app_gsm_work_state = APP_GSM_WAIT_AUTO;
-  strcpy(app_auto_cmd[0].cmd,"^SYSSTART");
-  strcpy(app_auto_cmd[1].cmd,"+CMTI");
-  strcpy(app_auto_cmd[2].cmd,"+CLIP");
-  app_auto_cmd[1].func = app_auto_cmd_cmti;
-  app_auto_cmd[2].func = app_auto_cmd_clip;
+  strcpy(app_auto_cmd[0].cmd,"+CMTI");
+  strcpy(app_auto_cmd[1].cmd,"+CLIP");
+  //strcpy(app_auto_cmd[2].cmd,"^SYSSTART");
+  app_auto_cmd[0].func = app_auto_cmd_cmti;
+  app_auto_cmd[1].func = app_auto_cmd_clip;
+  //app_auto_cmd[2].func = app_auto_cmd_start;
   
-  strcpy(app_sync_cmd[0].cmd,"OK");
-  strcpy(app_sync_cmd[1].cmd,"+CMGR");
+  strcpy(app_sync_cmd[0].cmd,"+CMGR");
   strcpy(app_sync_cmd[2].cmd,"+CMS");
-  app_sync_cmd[1].func = app_sync_cmd_cmgr;
+  strcpy(app_sync_cmd[1].cmd,"OK");
+  app_sync_cmd[0].func = app_sync_cmd_cmgr;
 }
 
 char *strstr1(const char *s1, const char *s2)
@@ -141,19 +160,26 @@ void APP_gsm_match_auto_at(void * ptr, int len)
     strp = strstr1(ptr,&app_auto_cmd[j].cmd[0]);
     if (strp != 0)
     {
-      app_auto_cmd[j].func(strp,len);
+      app_auto_cmd[j].func(ptr,len);
       return ;
     }
   }
   
 }
-ddd
+
 void APP_gsm_match_sync_at(void * ptr, int len)
 {
     char * strp;
+    char * bptr;
   for (int j=0;j<3;j++)
   {
-    strp = strstr1(ptr,app_sync_cmd[j].cmd);
+    bptr = (char *)ptr;
+    while (*bptr != '\0')
+    {
+      bptr++;
+    }
+    bptr++;
+    strp = strstr1(bptr,app_sync_cmd[j].cmd);
     if (strp != 0)
     {
       app_sync_cmd[j].func(strp,len);
@@ -166,12 +192,12 @@ void APP_gsm_match_sync_at(void * ptr, int len)
 void app_auto_cmd_clip(char * ptr, int len)
 {
   char num[13];
-  char bptr = ptr;
+  char *bptr = ptr;
   //+CLIP:num,type[...]
-  if (*bptr ! = ':')
+  if (bptr[5] != ':')
     return ;
   
-  bptr++;
+  bptr+=5;
   if ((*bptr == '+') && (bptr[1] == '8') && (bptr[2] == '6'))
   {
     bptr += 3;
@@ -188,36 +214,84 @@ void app_auto_cmd_clip(char * ptr, int len)
     num[i] = bptr[i];
   }
 }
+void app_auto_cmd_start(char * ptr, int len)
+{
+  char send_buff[15]="ATE0\r\n";
+  //APP_gsm_send(send_buff,6); //发送读取命令
 
+}
 void app_auto_cmd_cmti(char * ptr, int len)
 {
-      APP_gsm_send("AT+CMGR=1\r\n",12); //发送读取命令
-      app_gsm_work_state = APP_GSM_WAIT_SYNC;//进入同步命令
-  //匹配命令后提取参数
-  for (int i=0;i<len;i++)
+  char i,j,index;
+  char send_buff[15]="AT+CMGR=1\r\n";
+  //+CMTI:\"ME\",1
+  for (i=0;i<len;i++)
   {
     if (ptr[i] == ',')
     {
-      ptr += i;
-      
+      send_buff[8] = ptr[++i];  //先处理index只有1位的。
+      APP_gsm_send(send_buff,12); //发送读取命令
+      app_gsm_work_state = APP_GSM_WAIT_SYNC;//进入同步命令
     }
   }
+
 }
 
 void app_sync_cmd_cmgr(char * ptr, int len)
 {
-  int index;
-  //匹配命令后提取参数
-  for (int i=0;i<len;i++)
+  int i;
+  char * bptr = ptr;
+  //+CMGR:1,,160\r\npdu\r\n\r\nOK\r\n
+  while (*bptr != 0x0a)
   {
-    if (ptr[i] == ',')
-    {
-      ptr += i;
-      
-      //APP_gsm_send("AT+CMGR="+*ptr); //发送读取命令
-      app_gsm_work_state = APP_GSM_WAIT_SYNC;//进入同步命令
-    }
+    bptr++;
+    if (bptr > (len+ptr))
+      break;
   }
+    bptr++;
+    DecodePdu(bptr,&sms_st);
+    /*
+    cmd(1B)         password(4B)       content(0B-16B)
+    00 reserve       xxxx
+    01 set pass    (default 1234)         new pass
+    02 unprotect       xxxx                 
+    03 protect     xxxx
+    04 check stat    xxxx
+    */
+    for (i=0;i<4;i++)  //匹配密码
+    {
+       if (mc_password[i] != sms_st.TP_UD[i+1])
+       {
+         return;
+       }
+    }
+    
+    switch(sms_st.TP_UD[0])
+    {
+    case '1':
+      for (i=0;i<4;i++)  //设置新密码
+      {
+       mc_password[i] = sms_st.TP_UD[i+5];
+      }
+      MC_write_password_in();
+      break;
+      
+    case '2':
+      mc_set_state(MC_SYS_UNPORTECT);
+      break;
+      
+    case '3':
+      mc_set_state(MC_SYS_PORTECT);
+      break;
+      
+    case '4':
+      break;
+      
+    default:
+      break;
+        
+    }
+  
 }
 
 
@@ -237,14 +311,38 @@ void APP_gsm_send(void * ptr, int len)
 
 void APP_gsm_recv(void * ptr, int len)
 {
-  unsigned char * b_ptr = (unsigned char *)ptr;
+  DSM_ITEM * dsm = (DSM_ITEM *)ptr;
+  unsigned char * b_ptr = (unsigned char *)gsm_recv_buff;
+  
+  //取数据放到gsm的buff里面
+  for (int i =0;i<256;i++)
+  {
+    if (dsm->used != 0)
+    {
+       gsm_recv_buff[i] = dsm->data_ptr[i%32];
+       dsm->used--;
+    }
+    else
+    {
+      if (dsm->next == 0)
+      {
+        gsm_recv_buff[i] = 0;
+        len = i;
+        break;
+      }
+      else
+      {
+        dsm = dsm->next;
+      }
+    }
+  }
   
   switch (app_gsm_work_state)
   {
   case APP_GSM_WAIT_SYNC:
     //目前只处理短信上报和读取，和开机指令
-    APP_gsm_match_sync_at(ptr,len);
-    
+    APP_gsm_match_sync_at(b_ptr,len);
+    app_gsm_work_state =APP_GSM_WAIT_AUTO;
     break;
     
   case APP_GSM_WAIT_NSYNC:
@@ -253,22 +351,13 @@ void APP_gsm_recv(void * ptr, int len)
     
   case APP_GSM_WAIT_AUTO: //主动上报状态，匹配指令
     //目前只处理短信上报和读取，和开机指令
-    APP_gsm_match_auto_at(ptr,len);
+    APP_gsm_match_auto_at(b_ptr,len);
     
     break;
   }
 }
 
 
-typedef struct {
-  char SCA[16]; // 短消息服务中心号码(SMSC地址)
-  char TPA[16]; // 目标号码或回复号码(TP-DA或TP-RA)
-  char TP_PID; // 用户信息协议标识(TP-PID)
-  char TP_DCS; // 用户信息编码方式(TP-DCS)
-  char TP_SCTS[16]; // 服务时间戳字符串(TP_SCTS), 接收时用到
-  char TP_UD[160]; // 接收到的短信内容
-  //char TP_UDS[160]; // 要发送的短信内容
-} SM_PARAM;
 
 int String2Bytes(const char* pSrc, unsigned char* pDst, int nSrcLength)
 {

@@ -16,19 +16,13 @@
 
 
 //宏定义
-typedef enum {
-  MC_SYS_SET_C = 0,
-  MC_SYS_SET_D,
-  MC_SYS_SET_NUM,
-  MC_SYS_RESET,
-  MC_SYS_NO_SET,
-  MC_SYS_UNPORTECT,
-  MC_SYS_PORTECT,
-  MC_SYS_ALARM,
-}MC_SYS_STATE;
+
 
 //头文件
 #include "efs.h"
+#include "mc.h"
+#include "led.h"
+#include "golbe.h"
 
 
 //变量引用
@@ -41,6 +35,7 @@ unsigned long mc_d_addr_cnt = 0;
 unsigned long mc_d_addr_arry[6];
 
 char mc_sys_num[20] = {0};
+char mc_password[5] = {0};
 //函数引用
 //函数定义
 /*
@@ -89,6 +84,13 @@ MC_SYS_STATE mc_get_state(void)
 unsigned char mc_set_state(MC_SYS_STATE new_state)
 {
   unsigned char result = 0;
+  
+  //每次状态设置前都进行设备指示重复位。
+  TS_phe_led_ind(GLOBE_LED_YELLOW,GLOBE_LED_OFF);
+  TS_phe_led_ind(GLOBE_LED_YELLOW,GLOBE_LED_OFF);
+  TS_phe_buzz_ind(GLOBE_MIN_BUZZ,GLOBE_BUZZ_MUTE);
+  TS_phe_buzz_ind(GLOBE_MAX_BUZZ,GLOBE_BUZZ_MUTE);
+    //报警定时器也复位。
   switch (new_state)
   {
   case MC_SYS_SET_C:
@@ -96,6 +98,8 @@ unsigned char mc_set_state(MC_SYS_STATE new_state)
     {
       mc_sys_state = new_state;
       result =1;
+      //设置红灯长亮
+      TS_phe_led_ind(GLOBE_LED_RED,GLOBE_LED_ON);
     }
     break;
   case MC_SYS_SET_D:
@@ -103,6 +107,8 @@ unsigned char mc_set_state(MC_SYS_STATE new_state)
     {
       mc_sys_state = new_state;
       result =1;
+      //设置黄灯长亮
+      TS_phe_led_ind(GLOBE_LED_YELLOW,GLOBE_LED_ON);
     }
     break;
   case MC_SYS_SET_NUM:
@@ -110,17 +116,25 @@ unsigned char mc_set_state(MC_SYS_STATE new_state)
     {
       mc_sys_state = new_state;
       result =1;
+      //设置红黄灯长亮
+      TS_phe_led_ind(GLOBE_LED_RED,GLOBE_LED_ON);
+      TS_phe_led_ind(GLOBE_LED_YELLOW,GLOBE_LED_ON);
     }
     break;
   case MC_SYS_RESET:
       mc_sys_state = new_state;
       result =1;
+      //设置双灯灭，喇叭响
+      TS_phe_buzz_ind(GLOBE_MIN_BUZZ,GLOBE_BUZZ_RING);
     break;
   case MC_SYS_NO_SET:
     if (mc_sys_state == MC_SYS_RESET)
     {
       mc_sys_state = new_state;
       result =1;
+      //设置双灯一起闪
+      TS_phe_led_ind(GLOBE_LED_RED,GLOBE_LED_BLINK);
+      TS_phe_led_ind(GLOBE_LED_YELLOW,GLOBE_LED_BLINK);
     }
     break;
   case MC_SYS_UNPORTECT:
@@ -128,6 +142,8 @@ unsigned char mc_set_state(MC_SYS_STATE new_state)
     {
       mc_sys_state = new_state;
       result =1;
+      //设置黄灯慢闪
+      TS_phe_led_ind(GLOBE_LED_YELLOW,GLOBE_LED_BLINK);
     }
     break;
   case MC_SYS_PORTECT:
@@ -135,6 +151,8 @@ unsigned char mc_set_state(MC_SYS_STATE new_state)
     {
       mc_sys_state = new_state;
       result =1;
+      //设置红灯慢闪
+      TS_phe_led_ind(GLOBE_LED_RED,GLOBE_LED_BLINK);
     }
     break;
   case MC_SYS_ALARM:
@@ -142,6 +160,10 @@ unsigned char mc_set_state(MC_SYS_STATE new_state)
     {
       mc_sys_state = new_state;
       result =1;
+      //设置红灯快闪
+      TS_phe_led_ind(GLOBE_LED_RED,GLOBE_LED_QBLINK);
+      TS_phe_buzz_ind(GLOBE_MAX_BUZZ,GLOBE_BUZZ_RING);
+      //报警时间只有15秒，需注册一个定时。时间到或其他事件会切换状态从而停止。
     }
     break;
   }
@@ -210,6 +232,16 @@ void MC_write_addr_in_n(void)
   {
     TS_efs_nv_write(NV_N_ADD_S_I,mc_sys_num[i]);
     i++;
+  }
+  
+}
+
+void MC_write_password_in(void)
+{
+  int i=0;
+  for (i=0;i<4;i++) 
+  {
+    TS_efs_nv_write(NV_PASS_S_I,mc_password[i]);
   }
   
 }

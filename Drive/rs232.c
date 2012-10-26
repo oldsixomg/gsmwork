@@ -37,7 +37,9 @@ TIME_REG_STRUCT dr_rs232_recv_time;
 
 void DR_rs232_data_up(void)
 {
-    DSM_ITEM * item,head,list; 
+    DSM_ITEM * item;
+    DSM_ITEM * head;
+    DSM_ITEM * list; 
     head = dsm_alloc_item();
     item = head;
     
@@ -51,7 +53,7 @@ void DR_rs232_data_up(void)
         item->stream_id = SIO_RS232_STREAM_ID;
       }
       item->data_ptr[i%32] = dr_rs232_recv_buff[i];
-      item->used;
+      item->used++;
     }
     dr_rs232_recv_len = 0;
     OS_REPORT_RS232_MSG(RS232_UP_CMD,head);

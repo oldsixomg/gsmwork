@@ -15,7 +15,7 @@
 */
 
 //∫Í∂®“Â
-#define DSM_ITEM_MAX_SIZE 64
+#define DSM_ITEM_MAX_SIZE 32
 #define DSM_ITEM_MAX_CNT  20
 
 typedef struct _DSM_ITEM{
